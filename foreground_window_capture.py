@@ -1,4 +1,5 @@
-#! code:utf-8
+# cython: language_level=3, annotation_typing=False
+# -*- coding: utf-8 -*-
 import ctypes
 from ctypes import wintypes
 from datetime import datetime
@@ -24,88 +25,93 @@ from typing import Any, TypedDict
 
 from PIL import Image, UnidentifiedImageError
 
-RUNTIME_DIR = Path(__file__).resolve().parent
+MODULE_DIR = Path(__file__).resolve().parent
+RUNTIME_DIR = (
+    MODULE_DIR.parent
+    if MODULE_DIR.name.casefold() == "runtime"
+    else MODULE_DIR
+)
 CONFIG_PATH = RUNTIME_DIR / "config.json"
 LOG_DIR = RUNTIME_DIR / "logs"
 STATE_DIR = RUNTIME_DIR / "state"
 class Logger():
-	level_relations = {
-		'debug': logging.DEBUG,
-		0: logging.DEBUG,
-		'info': logging.INFO,
-		1: logging.INFO,
-		'warning': logging.WARNING,
-		2: logging.WARNING,
-		'error': logging.ERROR,
-		3: logging.ERROR,
-		'crit': logging.CRITICAL,
-		4: logging.CRITICAL
-	}  # 日志级别关系映射
+    level_relations = {
+        'debug': logging.DEBUG,
+        0: logging.DEBUG,
+        'info': logging.INFO,
+        1: logging.INFO,
+        'warning': logging.WARNING,
+        2: logging.WARNING,
+        'error': logging.ERROR,
+        3: logging.ERROR,
+        'crit': logging.CRITICAL,
+        4: logging.CRITICAL
+    }  # 日志级别关系映射
 
-	def __init__(self, pp=9222, level=2, when='H', backCount=10000,
-				 # fmt='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s'):
-				 fmt='[%(asctime)s %(filename)s:%(funcName)s:%(lineno)d %(levelname)s] %(message)s', print_f=True):
-		# options.log_to_stderr=False
+    def __init__(self, pp=9222, level=2, when='H', backCount=10000,
+                 # fmt='%(asctime)s - %(pathname)s[line:%(lineno)d] - %(levelname)s: %(message)s'):
+                 fmt='[%(asctime)s %(filename)s:%(funcName)s:%(lineno)d %(levelname)s] %(message)s', print_f=True):
+        # options.log_to_stderr=False
 
-		# root_path = os.path.dirname(os.path.realpath(__file__))
-		# filename_l = os.path.join(root_path,init_cfg.log_path)
-		# filename = os.path.join(filename_l,f'{pp}.log')
-		# try:
-		#     if not os.path.exists(os.path.join(root_path, 'log2')):
-		#         os.mkdir('log2')
-		# except Exception as e:
-		#     print(f'make dir log2 error={e}')
-		log_p = str(LOG_DIR)
-		if not os.path.exists(log_p):
-			os.mkdir(log_p)
-		filename = os.path.join(log_p, f'{pp}.log')
+        # root_path = os.path.dirname(os.path.realpath(__file__))
+        # filename_l = os.path.join(root_path,init_cfg.log_path)
+        # filename = os.path.join(filename_l,f'{pp}.log')
+        # try:
+        #     if not os.path.exists(os.path.join(root_path, 'log2')):
+        #         os.mkdir('log2')
+        # except Exception as e:
+        #     print(f'make dir log2 error={e}')
+        log_p = str(LOG_DIR)
+        if not os.path.exists(log_p):
+            os.mkdir(log_p)
+        filename = os.path.join(log_p, f'{pp}.log')
 
-		self.logger = logging.getLogger(filename)
-		format_str = logging.Formatter(fmt)  # 设置日志格式
-		self.logger.setLevel(self.level_relations.get(level))  # 设置日志级别
-		if print_f:
-			sh = logging.StreamHandler()  # 往屏幕上输出
-			sh.setFormatter(format_str)  # 设置屏幕上显示的格式
-			self.logger.addHandler(sh)
-		# th = handlers.TimedRotatingFileHandler(filename=filename, when=when, backupCount=backCount,encoding='utf-8')  # 往文件里写入#指定间隔时间自动生成文件的处理器
-		th = handlers.RotatingFileHandler(filename=filename, maxBytes=31457280, backupCount=backCount,
-										  encoding='utf-8')  # 往文件里写入#指定间隔时间自动生成文件的处理器
+        self.logger = logging.getLogger(filename)
+        format_str = logging.Formatter(fmt)  # 设置日志格式
+        self.logger.setLevel(self.level_relations.get(level))  # 设置日志级别
+        if print_f:
+            sh = logging.StreamHandler()  # 往屏幕上输出
+            sh.setFormatter(format_str)  # 设置屏幕上显示的格式
+            self.logger.addHandler(sh)
+        # th = handlers.TimedRotatingFileHandler(filename=filename, when=when, backupCount=backCount,encoding='utf-8')  # 往文件里写入#指定间隔时间自动生成文件的处理器
+        th = handlers.RotatingFileHandler(filename=filename, maxBytes=31457280, backupCount=backCount,
+                                          encoding='utf-8')  # 往文件里写入#指定间隔时间自动生成文件的处理器
 
-		# 实例化TimedRotatingFileHandler
-		# interval是时间间隔，backupCount是备份文件的个数，如果超过这个个数，就会自动删除，when是间隔的时间单位，单位有以下几种：
-		# S 秒
-		# M 分
-		# H 小时、
-		# D 天、
-		# W 每星期（interval==0时代表星期一）
-		# midnight 每天凌晨
-		th.setFormatter(format_str)  # 设置文件里写入的格式
-		# 把对象加到logger里
-		self.logger.addHandler(th)
+        # 实例化TimedRotatingFileHandler
+        # interval是时间间隔，backupCount是备份文件的个数，如果超过这个个数，就会自动删除，when是间隔的时间单位，单位有以下几种：
+        # S 秒
+        # M 分
+        # H 小时、
+        # D 天、
+        # W 每星期（interval==0时代表星期一）
+        # midnight 每天凌晨
+        th.setFormatter(format_str)  # 设置文件里写入的格式
+        # 把对象加到logger里
+        self.logger.addHandler(th)
 
-	@property
-	def ilog(self):
-		return self.logger.info
+    @property
+    def ilog(self):
+        return self.logger.info
 
-	@property
-	def elog(self):
-		return self.logger.error
+    @property
+    def elog(self):
+        return self.logger.error
 
-	@property
-	def wlog(self):
-		return self.logger.warning
+    @property
+    def wlog(self):
+        return self.logger.warning
 
-	@property
-	def log(self, flag=0):
-		if flag == 0:
-			return self.logger.debug
-		elif flag == 1:
-			return self.logger.info
-		elif flag == 2:
-			return self.logger.warning
-		elif flag == 3:
-			return self.logger.error
-		return self.logger.info
+    @property
+    def log(self, flag=0):
+        if flag == 0:
+            return self.logger.debug
+        elif flag == 1:
+            return self.logger.info
+        elif flag == 2:
+            return self.logger.warning
+        elif flag == 3:
+            return self.logger.error
+        return self.logger.info
 l = Logger(pp="agent", level=1, print_f=True)
 # TCP和内存保护。
 MAX_CONNECTIONS = 512

@@ -1,3 +1,5 @@
+# cython: language_level=3, annotation_typing=False
+
 """Windows service host for the foreground-window capture agent.
 
 The service runs in Session 0 and launches the capture script only in the
@@ -19,7 +21,13 @@ from typing import Any
 
 SERVICE_NAME = "ForegroundWindowCaptureService"
 SERVICE_DISPLAY_NAME = "Foreground Window Capture Service"
-RUNTIME_DIR = Path(__file__).resolve().parent
+MODULE_DIR = Path(__file__).resolve().parent
+RUNTIME_DIR = (
+    MODULE_DIR.parent
+    if MODULE_DIR.name.casefold() == "runtime"
+    else MODULE_DIR
+)
+PYTHON_RUNTIME_DIR = RUNTIME_DIR / "runtime"
 LOG_DIR = RUNTIME_DIR / "logs"
 STATE_DIR = RUNTIME_DIR / "state"
 STOP_FILE = STATE_DIR / "agent.stop"
@@ -52,12 +60,12 @@ if sys.platform == "win32":
     class ForegroundWindowCaptureService(win32serviceutil.ServiceFramework):
         _svc_name_ = SERVICE_NAME
         _svc_display_name_ = SERVICE_DISPLAY_NAME
-        _exe_name_ = str(RUNTIME_DIR / "runtime" / "pythonservice.exe")
+        _exe_name_ = str(PYTHON_RUNTIME_DIR / "pythonservice.exe")
         _svc_description_ = (
             "Launches the authorized foreground-window capture agent in the active user session."
         )
 
-        def __init__(self, args: list[str]) -> None:
+        def __init__(self, args) -> None:
             super().__init__(args)
             self.stop_event = win32event.CreateEvent(None, True, False, None)
             self.process: Any | None = None
@@ -121,10 +129,15 @@ if sys.platform == "win32":
                     win32con.MAXIMUM_ALLOWED, win32security.TokenPrimary, None,
                 )
                 environment = win32profile.CreateEnvironmentBlock(primary_token, False)
+                environment["FOREGROUND_CAPTURE_STOP_FILE"] = str(STOP_FILE)
                 command = [
-                    str(Path(sys.executable).resolve()),
-                    str(RUNTIME_DIR / "foreground_window_capture.py"),
-                    "--agent", "--stop-file", str(STOP_FILE),
+                    str(PYTHON_RUNTIME_DIR / "python.exe"),
+                    "-c",
+                    (
+                        "import os; from pathlib import Path; "
+                        "import foreground_window_capture as agent; "
+                        "agent.main(Path(os.environ['FOREGROUND_CAPTURE_STOP_FILE']))"
+                    ),
                 ]
                 startup = win32process.STARTUPINFO()
                 startup.lpDesktop = "winsta0\\default"
