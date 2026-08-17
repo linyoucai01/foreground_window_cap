@@ -678,10 +678,10 @@ class ImageTcpClient:
 CAPTURE_INTERVAL_SECONDS = 3.0
 
 # 窗口移动达到该距离（像素）才认为位置发生有效变化。
-POSITION_CHANGE_THRESHOLD_PIXELS = 50
+POSITION_CHANGE_THRESHOLD_PIXELS = 4
 
 # 64位感知 dHash 至少有这么多 bit 不同时，才认为画面明显变化。
-VISUAL_HASH_DISTANCE_THRESHOLD = 8
+VISUAL_HASH_DISTANCE_THRESHOLD = 1
 
 # 是否将已成功发送的变化截图额外保存为 PNG；网络传输始终只使用内存 WEBP。
 SAVE_CAPTURE_IMAGES = Const.save_capture_images
@@ -845,11 +845,7 @@ def main(stop_file: Path | None = None):
     print("截图间隔：", CAPTURE_INTERVAL_SECONDS, "秒")
     print("鼠标捕获：关闭")
     print("按 Ctrl+C 停止程序")
-    socket_client = ImageTcpClient()
-    try:
-        socket_client.connect()
-    except OSError as exc:
-        l.elog(f"初始连接图片服务器失败，后续发送时会自动重连：{exc!r}")
+
 
     # 同一客户端的消息 Id 必须单调递增。发送失败的同一画面会复用其 Id 重试。
     next_message_id = time.time_ns()
@@ -980,11 +976,17 @@ def main(stop_file: Path | None = None):
                                         method=4,
                                     )
                                     webp_bytes = buffer.getvalue()
+                                    socket_client = ImageTcpClient()
+                                    try:
+                                        socket_client.connect()
+                                    except OSError as exc:
+                                        l.elog(f"初始连接图片服务器失败，后续发送时会自动重连：{exc!r}")
                                     socket_client.send_dict({
                                         "Id": message_id,
                                         "plug_info": TEST_PLUG_INFO,
                                         "imgbyte": webp_bytes,
                                     })
+                                    socket_client.close()
                                 except (
                                     ImageProtocolError,
                                     OSError,
