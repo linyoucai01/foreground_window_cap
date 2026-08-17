@@ -1,0 +1,53 @@
+name: Build Windows PYD
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v6
+
+      - name: Set up Python 3.12 x64
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          architecture: "x64"
+
+      - name: Install build dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install cython setuptools wheel pywin32 mss pillow requests
+
+      - name: Normalize indentation
+        shell: pwsh
+        run: |
+          $files = @("foreground_window_capture.py", "foreground_window_service.py")
+          foreach ($file in $files) {
+            $text = [System.IO.File]::ReadAllText((Join-Path $PWD $file))
+            $text = [regex]::Replace($text, '(?m)^[ \t]+', {
+              param($match)
+              $match.Value.Replace("`t", "    ")
+            })
+            [System.IO.File]::WriteAllText((Join-Path $PWD $file), $text, (New-Object System.Text.UTF8Encoding($false)))
+          }
+
+      - name: Compile CPython extensions
+        shell: pwsh
+        run: |
+          python setup_pyd.py build_ext --inplace
+          Get-ChildItem -Filter "*.pyd"
+
+      - name: Upload Windows x64 PYD files
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-pyd-cp312-amd64
+          path: |
+            foreground_window_capture*.pyd
+            foreground_window_service*.pyd
+          if-no-files-found: error
+          retention-days: 30
